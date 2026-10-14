@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.pipeworx-io/indiana-code",
   "title": "Indiana Code",
-  "description": "Indiana Code — state statutes by citation, plus topic search and",
-  "version": "0.1.0",
+  "description": "Indiana Code — state statutes by citation, plus topic search and historical (per-year) versions.…",
+  "version": "0.1.1",
   "websiteUrl": "https://pipeworx.io/packs/indiana-code",
   "repository": {
     "url": "https://github.com/pipeworx-io/mcp-indiana-code",
