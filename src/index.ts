@@ -1073,11 +1073,11 @@ const tools: McpToolExport['tools'] = [
   {
     name: 'in_code_section',
     description:
-      'Get the FULL TEXT of a section of the Indiana Code — Indiana state law — by citation, plus when it was added or amended. "IC 9-21-5-5" is an oversized-vehicle speed limit (traffic, Title 9); "IC 32-31-3-6" defines "rent" in the landlord-tenant chapter (Title 32). Pass `year` (e.g. 2020) to retrieve a historical annual edition instead of the current code — Indiana publishes a separate archived edition per year. Keyless. Use for "what does Indiana Code 9-21-5-5 say" or to check an Indiana statute a lease, ticket, or case relies on.',
+      'Get the FULL TEXT of a section of the Indiana Code — Indiana state law — by citation, plus when it was added or amended. "IC 9-21-5-5" is an oversized-vehicle speed limit (traffic, Title 9); "IC 32-31-3-6" defines "rent" in the landlord-tenant chapter (Title 32). An ARTICLE ("IC 24-16") or CHAPTER ("IC 24-16-4") reference also works — it returns that group\'s own section list (citation + heading for each) instead of failing, so you can pick the right one and call this again for its full text. Pass `year` (e.g. 2020) to retrieve a historical annual edition instead of the current code — Indiana publishes a separate archived edition per year. Keyless. Use for "what does Indiana Code 9-21-5-5 say" or to check an Indiana statute a lease, ticket, or case relies on.',
     inputSchema: {
       type: 'object',
       properties: {
-        section: { type: 'string', description: 'Section as cited, e.g. "9-21-5-5" or "32-31-3-6". The title is the part before the first dash (title "7.1" is the one exception that itself contains a dot).' },
+        section: { type: 'string', description: 'Section, chapter, or article as cited — "9-21-5-5" (section), "24-16-4" (chapter), "24-16" (article). The title is the part before the first dash (title "7.1" is the one exception that itself contains a dot).' },
         year: { type: 'string', description: 'Optional 4-digit year for a historical annual edition, e.g. "2020". Omit for the current Indiana Code.' },
       },
       required: ['section'],
@@ -1151,23 +1151,61 @@ function parseSections(html: string, year: string, title: string): LocalSection[
   return sections;
 }
 
+/** Indiana citations nest hierarchically — "24-16" is article 16 of Title
+ *  24, "24-16-4" is chapter 4 of that article, "24-16-4-1" is a section —
+ *  and every real section id starts with its own article's and chapter's
+ *  id plus a dash. `groupLevel` reads that off the id's own segment count
+ *  rather than needing the live HTML's article/chapter boundary markers. */
+function groupLevel(id: string): string {
+  const n = id.split('-').length;
+  if (n === 2) return 'article';
+  if (n === 3) return 'chapter';
+  return 'group';
+}
+
 async function localLookup(
   r2: R2Like, title: string, section: string,
-): Promise<{ record: Record<string, unknown> } | { titleKnown: true } | { titleKnown: false }> {
+): Promise<{ record: Record<string, unknown> } | { group: Record<string, unknown> } | { titleKnown: true } | { titleKnown: false }> {
   const bundle = await readJson<LocalBundle>(r2, `${R2_PREFIX}/${title}.json`);
   if (!bundle) return { titleKnown: false };
   const hit = bundle.sections.find((s) => s.section === section);
-  if (!hit) return { titleKnown: true };
-  return {
-    record: {
-      citation: `IC ${section}`, section, title, title_name: bundle.title_name,
-      heading: hit.heading, text: hit.text, text_chars: hit.text.length,
-      history: hit.history, in_code_year: bundle.in_code_year, url: hit.url,
-      source: 'Indiana General Assembly (iga.in.gov), pre-fetched current-year text, keyless',
-      attribution: 'Indiana statutes are public record.',
-      data_as_of: bundle.ingested_at,
-    },
-  };
+  if (hit) {
+    return {
+      record: {
+        citation: `IC ${section}`, section, title, title_name: bundle.title_name,
+        heading: hit.heading, text: hit.text, text_chars: hit.text.length,
+        history: hit.history, in_code_year: bundle.in_code_year, url: hit.url,
+        source: 'Indiana General Assembly (iga.in.gov), pre-fetched current-year text, keyless',
+        attribution: 'Indiana statutes are public record.',
+        data_as_of: bundle.ingested_at,
+      },
+    };
+  }
+  // Not an exact section. An ARTICLE ("24-16") or CHAPTER ("24-16-4")
+  // reference is not a section and never will be — a caller asking for one
+  // deserves the group it names, not "no section 24-16" (the bug this
+  // fixes: an article number was being probed as if it were a section id).
+  // Any real section whose id starts with "<this>-" is this reference's own
+  // child, so the prefix test alone tells article/chapter apart from a
+  // genuinely bad citation with no fallback.
+  const prefix = `${section}-`;
+  const children = bundle.sections.filter((s) => s.section.startsWith(prefix));
+  if (children.length) {
+    return {
+      group: {
+        found: true, level: groupLevel(section),
+        citation: `IC ${section}`, section, title, title_name: bundle.title_name,
+        section_count: children.length,
+        sections: children.slice(0, 60).map((s) => ({ citation: `IC ${s.section}`, heading: s.heading })),
+        message: `IC ${section} is ${groupLevel(section) === 'article' ? 'an article' : groupLevel(section) === 'chapter' ? 'a chapter' : 'a group'}, not a single section — it has ${children.length} section(s). Pass one of the citations below to in_code_section for its full text.`,
+        in_code_year: bundle.in_code_year,
+        source: 'Indiana General Assembly (iga.in.gov), pre-fetched current-year text, keyless',
+        attribution: 'Indiana statutes are public record.',
+        data_as_of: bundle.ingested_at,
+      },
+    };
+  }
+  return { titleKnown: true };
 }
 
 async function liveLookup(raw: string, title: string, year: string) {
@@ -1184,6 +1222,26 @@ async function liveLookup(raw: string, title: string, year: string) {
   }
   const idx = boundaries.findIndex((b) => b.level === 'section' && b.id === raw);
   if (idx === -1) {
+    // Not a section — check whether `raw` is itself an article/chapter
+    // boundary (or simply the common prefix of a run of real sections, same
+    // test as localLookup's). The live document carries the article's and
+    // chapter's own heading spans, so this path can show it where the
+    // pre-fetched bundle (sections only) cannot.
+    const children = boundaries.filter((b) => b.level === 'section' && b.id.startsWith(`${raw}-`));
+    if (children.length) {
+      const own = boundaries.find((b) => b.level !== 'section' && b.id === raw);
+      const level = own?.level ?? groupLevel(raw);
+      return {
+        found: true, level,
+        citation: `IC ${raw}`, section: raw, title, year,
+        heading: own?.shortDesc || null,
+        section_count: children.length,
+        sections: children.slice(0, 60).map((b) => ({ citation: `IC ${b.id}`, heading: b.shortDesc || null })),
+        message: `IC ${raw} is ${level === 'article' ? 'an article' : level === 'chapter' ? 'a chapter' : 'a group'}, not a single section — it has ${children.length} section(s). Pass one of the citations below to in_code_section for its full text.`,
+        source: 'Indiana General Assembly (iga.in.gov), live fetch, keyless',
+        data_as_of: new Date().toISOString(),
+      };
+    }
     return { found: false, reason: 'section_not_found', section: raw, title, year,
       message: `No section ${raw} in the Indiana Code, Title ${title} (${year}).`,
       hint: 'Section numbers are not contiguous — repealed/renumbered sections are normal. Check the citation, or use in_code_search.',
@@ -1236,6 +1294,7 @@ async function inCodeSection(args: Record<string, unknown>) {
     if (bundle && (!yearArg || yearArg === bundle.in_code_year)) {
       const local = await localLookup(r2, title, raw);
       if ('record' in local) return local.record;
+      if ('group' in local) return local.group;
       if (local.titleKnown) {
         return {
           found: false, reason: 'section_not_found', section: raw, title,
