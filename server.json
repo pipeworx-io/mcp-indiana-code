@@ -3,7 +3,7 @@
   "name": "io.github.pipeworx-io/indiana-code",
   "title": "Indiana Code",
   "description": "Indiana Code — state statutes by citation, plus topic search and historical (per-year) versions.…",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "websiteUrl": "https://pipeworx.io/packs/indiana-code",
   "repository": {
     "url": "https://github.com/pipeworx-io/mcp-indiana-code",

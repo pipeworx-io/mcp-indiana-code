@@ -1,12 +1,20 @@
 {
   "name": "@pipeworx/mcp-indiana-code",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Indiana Code — state statutes by citation, plus topic search and historical (per-year) versions. Fleet #2724.",
   "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./tools.json": "./tools.json",
+    "./package.json": "./package.json"
+  },
   "bin": {
     "mcp-indiana-code": "bin/cli.js"
+  },
+  "files": ["bin/", "lib/", "tools.json", "server.json"],
+  "engines": {
+    "node": ">=18"
   },
   "keywords": ["mcp", "mcp-server", "model-context-protocol", "pipeworx", "indiana-code"],
   "license": "MIT",
@@ -14,19 +22,12 @@
     "type": "git",
     "url": "git+https://github.com/pipeworx-io/mcp-indiana-code.git"
   },
-  "scripts": {
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
-    "tsx": "^4.19.0"
-  },
-  "devDependencies": {
-    "typescript": "^5.9.3",
-    "@cloudflare/workers-types": "^4.20260405.1"
-  },
+  "mcpName": "io.github.pipeworx-io/indiana-code",
   "pipeworx": {
-    "sourceHash": "v1-59191f7518b9889f3e8bd1b0df22308320baabd3f831bf1c0685d50125661e7c",
-    "sourceCommit": "24e32b525f9c0b2fd7d94b519b08abb108cc11cd"
+    "mode": "gateway",
+    "slug": "indiana-code",
+    "gatewaySlug": "indiana-code",
+    "sourceHash": "v1-5f0fd2534cb71a770621713e9a5da306c7c146197129065386338c28de5abaab",
+    "sourceCommit": "4844029e402d6bd2fe735add8abf6d46735f8ed5"
   }
 }
