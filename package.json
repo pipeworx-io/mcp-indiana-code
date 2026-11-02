@@ -1,6 +1,6 @@
 {
   "name": "@pipeworx/mcp-indiana-code",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Indiana Code — state statutes by citation, plus topic search and historical (per-year) versions. Fleet #2724.",
   "type": "module",
   "main": "lib/index.js",
@@ -27,7 +27,7 @@
     "mode": "gateway",
     "slug": "indiana-code",
     "gatewaySlug": "indiana-code",
-    "sourceHash": "v1-5f0fd2534cb71a770621713e9a5da306c7c146197129065386338c28de5abaab",
-    "sourceCommit": "4844029e402d6bd2fe735add8abf6d46735f8ed5"
+    "sourceHash": "v1-7e86abd390bce015bd399cc1edb99b4888110a1d674acb3ee4f1cb0adef6f8b7",
+    "sourceCommit": "0ca9712c0ac03bb0121cc7e81b202d0c45ac02ca"
   }
 }
